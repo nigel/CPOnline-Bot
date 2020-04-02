@@ -43,20 +43,17 @@ class Client:
         self.rndk_msg = "<msg t='sys'><body action='rndK' r='-1'></body></msg>" 
         self.login_msg = '<msg t="sys"><body action="login" r="0"><login z="w1"><nick><![CDATA['+self.username+']]></nick><pword><![CDATA[{}]]></pword></login></body></msg>'
 
-
         self.key = None
         self.rndk = None
         self.login_key = None
         self.user_packet = None
         self.user_packet2 = None
         
-
     def _send(self,sock,payload,encrypted=True):
         if(encrypted):
             payload = hexlify(AES.new(self.key, AES.MODE_ECB).encrypt(self._pkcs7_pad(payload,16))).decode('utf-8')
         else:
             payload += chr(0)
-
         sock.send(payload.encode())
     
     ##CRYPTO HELPERS
@@ -105,12 +102,26 @@ class Client:
         print("[CLIENT] sending login request")
 
         buf = b""
-        #TODO: fix this temp solution
-        while len(buf) < 6400:
-            buf += self.login_socket.recv(1024)
 
-        #TODO: parse the information before this
-        init_resp = self._AESdecrypt(buf).decode('utf-8')
+        finished_recv = False
+        while (not finished_recv):
+            buf += self.login_socket.recv(1024)
+            delim = buf.find(b'\x00')
+            init_resp = ""
+
+            while delim!=-1:  
+                cmd = self._AESdecrypt(buf[:delim]).decode('utf-8')
+                #cmd.split("%")[2]
+                    #if "gs" then server list
+                    #if "gbos" (unknown)
+                    #if "gbl" then player uuid
+                    #if "l" then player information for login
+                if(cmd.split("%")[2]=="l"):
+                    init_resp = cmd
+                    finished_recv=True
+
+                buf = buf[delim+1:]
+                delim = buf.find(b'\x00')
 
         userInfo = init_resp[init_resp.find("%xt%l%-1%")+9:].split("|")
 
@@ -174,16 +185,3 @@ class Client:
 client = Client(username="username",password="password")
 client.login()
 client.join_world()
-
-
-
-
-    
-
-
-
-
-
-
-    
-
